@@ -1,14 +1,11 @@
 <template>
   <div class="right-block-main">
-    <div v-for="list in selectedItems" :key="list.name" class="lists">
+    <div v-for="list in lists" :key="list.name" class="lists">
       <div class="list-header">
         <span>{{ list.name }}</span>
         <div>
-          <button @click="shuffleSquares(list)" class="list-header-btn">
-            Перемешать
-          </button>
-          <button @click="sortSquares(list)" class="list-header-btn">
-            Сортировать
+          <button @click="toggleShuffleOrSort(list)" class="list-header-btn">
+            {{ list.isShuffled ? "Сортировать" : "Перемешать" }}
           </button>
         </div>
       </div>
@@ -28,60 +25,66 @@
     </div>
   </div>
 </template>
-
 <script setup>
-import { computed, ref, watch } from "vue";
+import { ref, watch } from "vue";
 import store from "../config/vuex";
 
-// const selectedItems = store.state.lists;
+const lists = ref(store.state.lists);
 
-const selectedItems = computed(() => {
-  return store.state.lists.filter((list) =>
-    list.items.some((item) => item.selected)
-  );
-});
+// Функция для переключения перемешивания/сортировки элементов списка
+const toggleShuffleOrSort = (list) => {
+  list.isShuffled ? sortSquares(list) : shuffleSquares(list);
 
+  list.isShuffled = !list.isShuffled;
+};
+
+// Функция для удаления элемента
 const decreaseQuantity = (item) => {
   if (item.quantity > 0) {
     item.quantity--;
   }
 };
 
+// Функция для перемешивания элементов
 const shuffleSquares = (list) => {
-  const shuffledItems = list.items.slice().sort(() => Math.random() - 0.5);
-  const randomColors = generateRandomColors(shuffledItems.length);
-  list.items.forEach((item, index) => {
-    item.color = randomColors[index];
+  const squaresToShuffle = list.items.filter((item) => item.selected);
+  const allSelectedSquares = squaresToShuffle.map((item) => ({
+    quantity: item.quantity,
+    color: item.color,
+  }));
+  const shuffledColors = shuffler(allSelectedSquares.map((item) => item.color));
+
+  squaresToShuffle.forEach((item, index) => {
+    item.color = shuffledColors[index];
+    item.quantity = allSelectedSquares[index].quantity;
   });
-  list.items.splice(0, list.items.length, ...shuffledItems);
 };
 
+// Функция для перемешивания массива цветов
+const shuffler = (colors) => {
+  const shuffledColors = colors.slice();
+  for (let i = shuffledColors.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffledColors[i], shuffledColors[j]] = [
+      shuffledColors[j],
+      shuffledColors[i],
+    ];
+  }
+  return shuffledColors;
+};
+
+// Функция для сортировки элементов
 const sortSquares = (list) => {
-  const originalOrder = list.items.map((item) => item);
-  list.items.sort(
-    (a, b) => originalOrder.indexOf(a) - originalOrder.indexOf(b)
-  );
-};
-
-const generateRandomColors = (numColors) => {
-  const colors = [];
-  for (let i = 0; i < numColors; i++) {
-    const randomColor = getRandomColor();
-    colors.push(randomColor);
-  }
-  return colors;
-};
-
-const getRandomColor = () => {
-  const letters = "0123456789ABCDEF";
-  let color = "#";
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
+  const originalOrder = list.items.filter((item) => item.selected);
+  console.log(originalOrder);
+  list.items.forEach((item, index) => {
+    if (item.selected) {
+      item.quantity = originalOrder[index].quantity;
+      item.color = originalOrder[index].color;
+    }
+  });
 };
 </script>
-
 <style lang="scss">
 .color-squares-container {
   flex-wrap: wrap;
@@ -98,7 +101,6 @@ const getRandomColor = () => {
 
 .right-block-main {
   width: 45%;
-  height: 90%;
   border: 2px solid black;
 
   .list-header {
